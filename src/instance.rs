@@ -212,7 +212,7 @@ impl Instance {
   
   pub fn create_device(&self, phys_device: &vk::PhysicalDevice, device_info: &vk::DeviceCreateInfo, logs: &mut Logs) -> vk::Device {
     let mut device = unsafe { mem::MaybeUninit::uninit().assume_init() };
-    logs.system_msg(&format!("GABU ANAL: {:?}", phys_device));
+    
     unsafe {
       check_errors(self.vk.CreateDevice(*phys_device, device_info, ptr::null(), &mut device));
     }
@@ -226,7 +226,7 @@ impl Instance {
     
     let layer_names = {
       if should_debug {
-        [CString::new("VK_LAYER_LUNARG_standard_validation").unwrap()]
+        [CString::new("VK_LAYER_KHRONOS_validation").unwrap()]
       } else {
         [CString::new("").unwrap()]
       }

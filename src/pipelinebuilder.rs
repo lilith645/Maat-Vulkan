@@ -348,7 +348,7 @@ impl PipelineBuilder {
       }
     };
     
-    let layouts = self.descriptor_set_layouts.unwrap();
+    let layouts = self.descriptor_set_layouts.expect("PipelineBuilderError: Descriptor set layouts not present.");
     let pipeline_layout_create_info = {
       vk::PipelineLayoutCreateInfo {
         sType: vk::STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -372,11 +372,11 @@ impl PipelineBuilder {
       stage: shader_stage,
       layout: layout,
       basePipelineHandle: 0,
-      basePipelineIndex: -1,
+      basePipelineIndex: 0, // -1
     });
     
     unsafe {
-      check_errors(vk.CreateComputePipelines(*device, 0, compute_pipeline_create_infos.len() as u32, compute_pipeline_create_infos.as_ptr(), ptr::null(), pipelines.as_mut_ptr()));
+      check_errors(vk.CreateComputePipelines(*device, 0, 1, compute_pipeline_create_infos.as_ptr(), ptr::null(), pipelines.as_mut_ptr()));
       pipelines.set_len(compute_pipeline_create_infos.len());
     }
     

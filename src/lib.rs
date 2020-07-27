@@ -2,6 +2,7 @@ pub extern crate winit;
 pub extern crate cgmath;
 pub extern crate vk;
 pub extern crate image;
+pub extern crate libc;
 
 pub use self::window::VkWindow;
 pub use self::swapchain::Swapchain;
@@ -32,8 +33,8 @@ pub mod buffer;
 pub mod sync;
 pub mod vkenums;
 mod settings;
-mod loader;
-mod ownage;
+pub mod loader;
+pub mod ownage;
 mod window;
 mod swapchain;
 mod shader;
@@ -50,7 +51,7 @@ mod clearvalues;
 mod compute;
 mod logs;
 
-const ENGINE_VERSION: u32 = (0 as u32) << 22 | (2 as u32) << 12 | (0 as u32);
+pub const ENGINE_VERSION: u32 = (0 as u32) << 22 | (2 as u32) << 12 | (0 as u32);
 
 #[cfg(test)]
 mod tests {

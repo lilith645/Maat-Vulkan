@@ -449,6 +449,27 @@ impl CommandBuffer {
     &self.command_buffer
   }
   
+  pub fn submit_compute(&self, device: Arc<Device>, compute_queue: &vk::Queue) -> vk::Result {
+    let submit_info: vk::SubmitInfo = {
+      vk::SubmitInfo {
+        sType: vk::STRUCTURE_TYPE_SUBMIT_INFO,
+        pNext: ptr::null(),
+        waitSemaphoreCount: 0,
+        pWaitSemaphores: ptr::null(),
+        pWaitDstStageMask: ptr::null(),
+        commandBufferCount: 1,
+        pCommandBuffers: &self.command_buffer,
+        signalSemaphoreCount: 0,
+        pSignalSemaphores: ptr::null(),
+      }
+    };
+    
+    unsafe {
+      let vk = device.pointers();
+      vk.QueueSubmit(*compute_queue, 1, &submit_info, 0)
+    }
+  }
+  
   pub fn submit(&self, device: Arc<Device>, swapchain: &Swapchain, current_image: u32, image_available: &Semaphore, render_finished: &Semaphore, fence: &Fence, graphics_queue: &vk::Queue) -> vk::Result {
     let pipeline_stage_flags = PipelineStage::ColorAttachmentOutput.to_bits();
     let submit_info: vk::SubmitInfo = {

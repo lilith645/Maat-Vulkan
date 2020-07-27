@@ -292,9 +292,11 @@ pub struct VkWindow {
   device: Arc<Device>,
   surface: vk::SurfaceKHR,
   swapchain: Swapchain,
+  compute_queue: vk::Queue,
   graphics_queue: vk::Queue,
   present_queue: vk::Queue,
   graphics_present_family_index: (u32, u32),
+  compute_family_idx: u32,
   window: winit::window::Window,
   //events_loop: winit::event_loop::EventLoop<()>,
 }
@@ -323,7 +325,7 @@ impl VkWindow {
     
     let device = Device::new(Arc::clone(&instance), &surface, should_debug, logs);
     
-    let (graphics_family, present_family, graphics_queue, present_queue) = VkWindow::find_queue_families(Arc::clone(&instance), Arc::clone(&device), &surface, logs);
+    let (graphics_family, present_family, compute_family_idx, graphics_queue, present_queue, compute_queue) = VkWindow::find_queue_families(Arc::clone(&instance), Arc::clone(&device), &surface, logs);
     
     let swapchain = Swapchain::new(Arc::clone(&instance), Arc::clone(&device), &surface, 
                                    graphics_family, present_family, vsync, triple_buffer, logs);
@@ -333,9 +335,11 @@ impl VkWindow {
       device: device,
       surface: surface,
       swapchain: swapchain,
+      compute_queue,
       graphics_queue: graphics_queue,
       present_queue: present_queue,
       graphics_present_family_index: (graphics_family, present_family),
+      compute_family_idx,
       window: window,
       //events_loop: events_loop,
     }, events_loop)
@@ -460,16 +464,24 @@ impl VkWindow {
     &self.device.physical_device()
   }
   
-  pub fn get_graphics_queue(&self) -> &vk::Queue {
-    &self.graphics_queue
-  }
-  
   pub fn get_present_queue(&self) -> &vk::Queue {
     &self.present_queue
   }
   
+  pub fn get_graphics_queue(&self) -> &vk::Queue {
+    &self.graphics_queue
+  }
+  
   pub fn get_graphics_family(&self) -> u32 {
     self.graphics_present_family_index.0
+  }
+  
+  pub fn get_compute_queue(&self) -> &vk::Queue {
+    &self.compute_queue
+  }
+  
+  pub fn get_compute_family(&self) -> u32 {
+    self.compute_family_idx
   }
   
   pub fn get_max_mssa(&self) -> u32 {
@@ -541,18 +553,27 @@ impl VkWindow {
     (window, events_loop, surface)
   }
   
-  fn find_queue_families(instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR, logs: &mut Logs) -> (u32, u32, vk::Queue, vk::Queue) {
+  fn find_queue_families(instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR, logs: &mut Logs) -> (u32, u32, u32, vk::Queue, vk::Queue, vk::Queue) {
     let phys_device = device.physical_device();
     
     let queue_family_properties: Vec<vk::QueueFamilyProperties> = instance.get_queue_family_properties(phys_device);
     
     let mut graphics_family: i32 = -1;
     let mut present_family: i32 = -1;
+    let mut compute_family: i32 = -1;
     
     for i in 0..queue_family_properties.len() {
+      if queue_family_properties[i].queueFlags & vk::QUEUE_COMPUTE_BIT != 0 {
+        compute_family = i as i32;
+        
+      }
       let queue_family = &queue_family_properties[i];
       if queue_family.queueCount > 0 && VkWindow::has_graphics_bit(&queue_family.queueFlags) {
         graphics_family = i as i32;
+      }
+      
+      if queue_family.queueCount > 0 && VkWindow::has_compute_bit(&queue_family.queueFlags) {
+        compute_family = i as i32;
       }
       
       let present_supported = instance.get_supported_display_queue_families(phys_device, surface, i as u32);
@@ -564,6 +585,7 @@ impl VkWindow {
       if graphics_family == present_family {
         break;
       }
+      
       /*
       let mut valid_graphics_family: i32 = -1;
       let mut valid_presents_family: i32 = -1;
@@ -581,21 +603,38 @@ impl VkWindow {
         }
       }*/
     }
-    
+    println!("Compute: {}", compute_family);
     if graphics_family != present_family {
       let msg = "This is my custom error brown, I dun fucked up!";
       logs.panic_msg(msg);
       panic!(msg);
     }
     
+    let compute_queue: vk::Queue = device.get_device_queue(compute_family as u32, 0);
     let graphics_queue: vk::Queue = device.get_device_queue(graphics_family as u32, 0);
     let present_queue: vk::Queue = device.get_device_queue(present_family as u32, 0);
-    
-    (graphics_family as u32, present_family as u32, graphics_queue, present_queue)
+    println!("Queues: compute: {} graphics: {} present: {}", compute_queue, graphics_queue, present_queue);
+    (graphics_family as u32, present_family as u32, compute_family as u32, graphics_queue, present_queue, compute_queue)
   }
   
   fn has_graphics_bit(queue_flags: &u32) -> bool {
     queue_flags % 2 != 0 
+  }
+  
+  fn has_compute_bit(queue_flags: &u32) -> bool {
+    println!("Queue: {}", queue_flags);
+    let mut qf = *queue_flags;
+    if qf > 8 {
+      qf -= 8;
+    }
+    if qf > 4 {
+      qf -= 4;
+    }
+    if qf % 2 != 0 {
+      qf -= 1;
+    }
+    
+    qf > 0
   }
 }
 

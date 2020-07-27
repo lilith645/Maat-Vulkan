@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::ffi::CStr;
 use std::ffi::CString;
 
-const PRIORITY: f32 = 1.0;
+const PRIORITY: f32 = 0.5;
 
 pub struct Device {
   vk: vk::DevicePointers,
@@ -74,6 +74,107 @@ impl Device {
     }
     
     graphics_queue
+  }
+  
+  pub fn physical_device_memory_properties(&self, instance: Arc<Instance>) -> vk::PhysicalDeviceMemoryProperties {
+    let mut physical_device_memory_properties: vk::PhysicalDeviceMemoryProperties = unsafe { mem::MaybeUninit::uninit().assume_init() };
+    
+    unsafe {
+      let vk = instance.pointers();
+      
+      vk.GetPhysicalDeviceMemoryProperties(*self.physical_device(), &mut physical_device_memory_properties);
+    }
+    
+    physical_device_memory_properties
+  }
+  
+  pub fn best_compute_queue_nph(&self, instance: Arc<Instance>, queue_family_idx: &mut u32) -> vk::Result {
+    let mut queue_family_properties_count = 0;
+    println!("Start of best compute queue");
+    unsafe {
+      let vk = instance.pointers();
+      
+      vk.GetPhysicalDeviceQueueFamilyProperties(*self.physical_device(), &mut queue_family_properties_count, ptr::null_mut());
+    }
+    println!("queue count: {}", queue_family_properties_count);
+    let mut queue_family_properties: Vec<vk::QueueFamilyProperties> = Vec::with_capacity(queue_family_properties_count as usize);//unsafe { mem::MaybeUninit::uninit().assume_init() };
+    
+    unsafe {
+      let vk = instance.pointers();
+      
+      vk.GetPhysicalDeviceQueueFamilyProperties(*self.physical_device(), &mut queue_family_properties_count, queue_family_properties.as_mut_ptr());
+      
+      queue_family_properties.set_len(queue_family_properties_count as usize);
+    }
+    
+    println!("Queue family properties");
+    for i in 0..queue_family_properties_count as usize {
+      let masked_flags = !(vk::QUEUE_TRANSFER_BIT | vk::QUEUE_SPARSE_BINDING_BIT) & queue_family_properties[i].queueFlags;
+      
+      if (!(vk::QUEUE_GRAPHICS_BIT & masked_flags) != 0 && (vk::QUEUE_COMPUTE_BIT & masked_flags) != 0) {
+        *queue_family_idx = i as u32;
+        return vk::SUCCESS;
+      }
+    }
+    
+    for i in 0..queue_family_properties_count as usize {
+      let masked_flags = (!(vk::QUEUE_TRANSFER_BIT | vk::QUEUE_SPARSE_BINDING_BIT) & queue_family_properties[i].queueFlags);
+      
+      if (vk::QUEUE_COMPUTE_BIT & masked_flags) != 0 {
+        *queue_family_idx = i as u32;
+        return vk::SUCCESS;
+      }
+    }
+    
+    vk::ERROR_INITIALIZATION_FAILED
+  }
+  
+  pub fn best_transfer_queue_nph(&self, instance: Arc<Instance>, queue_family_idx: &mut u32) -> vk::Result {
+    /*let mut queue_family_properties_count = 0;
+    
+    unsafe {
+      let vk = instance.pointers();
+      
+      vk.GetPhysicalDeviceQueueFamilyProperties(*self.physical_device(), &mut queue_family_properties_count, ptr::null_mut());
+    }
+    
+    let mut queue_family_properties: Vec<vk::QueueFamilyProperties> = unsafe { mem::MaybeUninit::uninit().assume_init() };
+    
+    unsafe {
+      let vk = instance.pointers();
+      
+      vk.GetPhysicalDeviceQueueFamilyProperties(*self.physical_device(), &mut queue_family_properties_count, queue_family_properties.as_mut_ptr());
+    }
+    
+    for i in 0..queue_family_properties_count as usize {
+      let masked_flags = (!vk::QUEUE_SPARSE_BINDING_BIT & queue_family_properties[i].queueFlags);
+      
+      if (!((vk::QUEUE_GRAPHICS_BIT | vk::QUEUE_COMPUTE_BIT) & masked_flags) != 0 &&
+          (vk::QUEUE_TRANSFER_BIT & masked_flags) != 0) {
+        *queue_family_idx = i as u32;
+        return vk::SUCCESS;
+      }
+    }
+    
+    for i in 0..queue_family_properties_count as usize {
+      let masked_flags = (!vk::QUEUE_SPARSE_BINDING_BIT & queue_family_properties[i].queueFlags);
+      
+      if (!(vk::QUEUE_GRAPHICS_BIT & masked_flags) != 0 && (vk::QUEUE_COMPUTE_BIT & masked_flags) != 0) {
+        *queue_family_idx = i as u32;
+        return vk::SUCCESS;
+      }
+    }
+    
+    for i in 0..queue_family_properties_count as usize {
+      let masked_flags = (!vk::QUEUE_SPARSE_BINDING_BIT & queue_family_properties[i].queueFlags);
+      
+      if ((vk::QUEUE_GRAPHICS_BIT | vk::QUEUE_COMPUTE_BIT | vk::QUEUE_TRANSFER_BIT) & masked_flags) != 0 {
+        *queue_family_idx = i as u32;
+        return vk::SUCCESS;
+      }
+    }
+    */
+    vk::ERROR_INITIALIZATION_FAILED
   }
   
   pub fn get_compute_queue(&self, instance: Arc<Instance>, logs: &mut Logs) -> (vk::Queue, u32) {
@@ -144,19 +245,14 @@ impl Device {
     let mut device_available_extensions = Vec::new();
     let mut physical_device_index = 0;
     
-    let priority = vec!(1.0);
-    
     for i in 0..physical_devices.len() {
       logs.system_msg(&format!("\nLooping devices: {}", i));
       let family_properties = instance.get_device_queue_family_properties(&physical_devices[i]);
       
       let mut has_graphics_bit = false;
       let mut device_supports_surface: u32 = 0;
-      //let mut supported_queue_fam_index = 0;
       
-      //let mut queue_index = 0;
       for j in 0..family_properties.len() {
-        //let queue_count = family_properties[j].queueCount;
         let queue_flags = family_properties[j].queueFlags;
         if Device::has_graphics_bit(&queue_flags) {
           has_graphics_bit = true;
@@ -164,10 +260,6 @@ impl Device {
         
         if device_supports_surface == 0 {
           device_supports_surface = instance.physical_device_supports_surface(&physical_devices[i], j as u32, surface);
-          
-          //if device_supports_surface != 0 {
-          // supported_queue_fam_index = j;
-          //}
         }
       }
       
@@ -202,7 +294,6 @@ impl Device {
         let mut device_queue_infos = Vec::with_capacity(family_properties.len());
         
         for j in 0..family_properties.len() {
-          let p: &Vec<f32> = priority.as_ref();
           device_queue_infos.push(
             vk::DeviceQueueCreateInfo {
               sType: vk::STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -210,7 +301,7 @@ impl Device {
               flags: 0,
               queueFamilyIndex: j as u32,
               queueCount: family_properties[j].queueCount,
-              pQueuePriorities: p.as_ptr(),  // priotiry
+              pQueuePriorities: &(PRIORITY.clone()),
             }
           );
         }
@@ -309,11 +400,11 @@ impl Device {
     
     
     let mut device_prop: vk::PhysicalDeviceProperties = unsafe { mem::MaybeUninit::uninit().assume_init() };
-    logs.system_msg(&format!("BEFORE THAT DUMB PHGYS DEVICE GET SHIT"));
+    
     unsafe {
       instance.pointers().GetPhysicalDeviceProperties(physical_devices[physical_device_index], &mut device_prop);
     }
-    logs.system_msg(&format!("AFTER THAT DUMB PHGYS DEVICE GET SHIT"));
+    
     let min_uniformbuffer_offset_alignment = device_prop.limits.minUniformBufferOffsetAlignment;
     let non_coherent_atom_size = device_prop.limits.nonCoherentAtomSize;
     logs.system_msg(&format!("Max fragment shader outputs: {}", device_prop.limits.maxFragmentOutputAttachments));

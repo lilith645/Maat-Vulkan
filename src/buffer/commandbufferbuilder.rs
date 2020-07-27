@@ -165,11 +165,12 @@ impl CommandBufferBuilder {
     self
   }
   
-  pub fn compute_dispatch(self, device: Arc<Device>, pipeline: &Pipeline, descriptor_set: Vec<vk::DescriptorSet>, x: u32, y: u32, z: u32) -> CommandBufferBuilder {
+  pub fn compute_dispatch(self, device: Arc<Device>, pipeline: &Pipeline, descriptor_set: Vec<vk::DescriptorSet>, compute_queue: &usize, x: u32, y: u32, z: u32) -> CommandBufferBuilder {
     self.command_buffer.bind_compute_pipeline(Arc::clone(&device), pipeline);
     self.command_buffer.bind_compute_descriptor_set(Arc::clone(&device), pipeline, descriptor_set);
     
     self.command_buffer.dispatch(Arc::clone(&device), x, y, z);
+    println!("Before submit");
     
     self
   }
@@ -191,6 +192,15 @@ impl CommandBufferBuilder {
   
   pub fn end_command_buffer(self, device: Arc<Device>) -> CommandBufferBuilder {
     self.command_buffer.end_command_buffer(Arc::clone(&device));
+    self
+  }
+  
+  pub fn execute_dispatch(self, device: Arc<Device>, compute_queue: &usize) -> CommandBufferBuilder {
+    self.command_buffer.submit_compute(Arc::clone(&device), compute_queue);
+    println!("After submit");
+    self.command_buffer.finish(Arc::clone(&device), compute_queue);
+    println!("After finish");
+    
     self
   }
   
