@@ -294,6 +294,7 @@ impl Device {
         let mut device_queue_infos = Vec::with_capacity(family_properties.len());
         
         for j in 0..family_properties.len() {
+          const PRIORITY: f32 = 0.5;
           device_queue_infos.push(
             vk::DeviceQueueCreateInfo {
               sType: vk::STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
