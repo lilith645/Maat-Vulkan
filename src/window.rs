@@ -39,14 +39,19 @@ pub fn array2_to_vec2<T: Clone>(array: [T; 2]) -> Vector2<T> {
 
 #[cfg(target_os = "android")]
 unsafe fn create_surface(
-    instance: &Instance, window: &winit::Window,
+    instance: &Instance, window: &winit::window::Window,
 ) -> vk::SurfaceKHR {
-  use winit::platform::android::WindowExt;
-  
+  use winit::platform::android::WindowExtAndroid;
+  use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
   let vk = instance.pointers();
   let win = window;
   let extensions = instance.get_extensions();
-  let window = win.borrow().native_window();
+  //let window = win.borrow().raw_window_handle();//.native_window();
+  let window = match win.borrow().raw_window_handle() {
+    RawWindowHandle::Android(h) => h.a_native_window,
+    _ =>  {panic!("andoird failed!");}
+  };
+  
   
   if !extensions.contains(&CString::new("VK_KHR_android_surface").unwrap()) {
     panic!("Missing extension VK_KHR_android_surface");

@@ -3,6 +3,7 @@ pub extern crate cgmath;
 pub extern crate vk;
 pub extern crate image;
 pub extern crate libc;
+pub extern crate raw_window_handle;
 
 pub use self::window::VkWindow;
 pub use self::swapchain::Swapchain;
