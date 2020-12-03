@@ -66,7 +66,7 @@ impl<T: Clone> Buffer<T> {
     let properties = device.physical_device_memory_properties(Arc::clone(&instance));//instance.get_device_properties(device.physical_device());
     println!("before best compute queue");
     let mut queue_family_idx = 0;
-    check_errors(device.best_compute_queue_nph(Arc::clone(&instance), &mut queue_family_idx));
+    //check_errors(device.best_compute_queue_nph(Arc::clone(&instance), &mut queue_family_idx));
     println!("After best compute queue");
    // let mut buffer: vk::Buffer = unsafe { mem::MaybeUninit::uninit().assume_init() };
    // let mut buffer_memory: vk::DeviceMemory = unsafe { mem::MaybeUninit::uninit().assume_init() };
