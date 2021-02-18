@@ -4,7 +4,8 @@ use ash::version::DeviceV1_0;
 use image::GenericImage;
 use image::GenericImageView;
 
-use crate::modules::{VkDevice, Memory, Buffer, Vulkan};
+use crate::modules::{VkDevice, Memory, Buffer};
+use crate::Vulkan;
 
 pub struct Image {
   image: vk::Image,

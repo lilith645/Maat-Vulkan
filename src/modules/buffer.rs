@@ -117,6 +117,11 @@ impl<T: Sized + Copy> BufferBuilder<T> {
     self
   }
   
+  pub fn usage_vertex_dst_buffer(mut self) -> BufferBuilder<T> {
+    self.usage = vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST;
+    self
+  }
+  
   pub fn usage_transfer_src(mut self) -> BufferBuilder<T> {
     self.usage = vk::BufferUsageFlags::TRANSFER_SRC;
     self

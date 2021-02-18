@@ -1,4 +1,3 @@
-pub use self::vulkan::Vulkan;
 pub use swapchain::VkSwapchain;
 pub use self::device::VkDevice;
 pub use self::instance::VkInstance;
@@ -22,7 +21,6 @@ pub use self::descriptorset_writer::DescriptorWriter;
 pub use self::compute_shader::ComputeShader;
 pub use self::compute_pipeline::ComputePipeline;
 
-pub mod vulkan;
 mod swapchain;
 mod device;
 mod instance;

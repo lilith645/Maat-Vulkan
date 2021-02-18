@@ -7,10 +7,15 @@ use ash::{vk};
 use std::default::Default;
 use winit::window::Window;
 
+use std::mem::{size_of, zeroed};
+use std::slice::from_raw_parts;
+
 use crate::modules::{VkDevice, VkInstance, VkCommandPool, VkSwapchain, VkFrameBuffer, Scissors, 
                      ClearValues, Viewport, Fence, Semaphore, ImageBuilder, Image, Renderpass, 
                      PassDescription, VkWindow, Buffer, GraphicsPipeline, Shader, DescriptorSet,
                      ComputeShader, DescriptorWriter};
+
+mod modules;
 
 // Simple offset_of macro akin to C++ offsetof
 #[macro_export]
@@ -184,6 +189,66 @@ impl Vulkan {
                                    extent.height as f32,
                                    0.0, 1.0);
   }
+  /*
+#[allow(clippy::too_many_arguments)]
+  pub fn draw_submit_commandbuffer<F: FnOnce(&VkDevice, vk::CommandBuffer)>(
+      &self,
+      f: Vec<F>,
+  ) {
+    Vulkan::record_submit_commandbuffer(
+      let device = &self.device;
+      let draw_command_buffer = self.draw_command_buffer;
+      let draw_commands_reuse_fence = &self.draw_commands_reuse_fence;
+      let present_queue = self.device.present_queue();
+      let &[vk::PipelineStageFlags::BOTTOM_OF_PIPE];
+      &self.present_complete_semaphore,
+      &self.rendering_complete_semaphore,
+    
+    unsafe {
+        command_buffer_reuse_fence.wait(device);
+        command_buffer_reuse_fence.reset(device);
+        
+        device
+            .reset_command_buffer(
+                command_buffer,
+                vk::CommandBufferResetFlags::RELEASE_RESOURCES,
+            )
+            .expect("Reset command buffer failed.");
+
+        let command_buffer_begin_info = vk::CommandBufferBeginInfo::builder()
+            .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+
+        device
+            .begin_command_buffer(command_buffer, &command_buffer_begin_info)
+            .expect("Begin commandbuffer");
+        
+        for g in f {
+          g(device, command_buffer);
+        }
+        
+        device
+            .end_command_buffer(command_buffer)
+            .expect("End commandbuffer");
+
+        let command_buffers = vec![command_buffer];
+        
+        let wait_semaphore = [wait_semaphores.internal()];
+        let signal_semaphore = [signal_semaphores.internal()];
+        let submit_info = vk::SubmitInfo::builder()
+            .wait_semaphores(&wait_semaphore)
+            .wait_dst_stage_mask(wait_mask)
+            .command_buffers(&command_buffers)
+            .signal_semaphores(&signal_semaphore);
+
+        device
+            .queue_submit(
+                submit_queue,
+                &[submit_info.build()],
+                command_buffer_reuse_fence.internal(),
+            )
+            .expect("queue submit failed.");
+    }
+  }*/
 
   pub fn render_triangle<T: Copy, L: Copy>(
       &mut self,
@@ -242,18 +307,42 @@ impl Vulkan {
         
         device.cmd_set_viewport(draw_command_buffer, 0, &[self.viewports.build()]);
         device.cmd_set_scissor(draw_command_buffer, 0, &self.scissors.build());
+        
         device.cmd_bind_vertex_buffers(
           draw_command_buffer,
           0,
           &[*vertex_buffer.internal()],
           &[0],
         );
+        
         device.cmd_bind_index_buffer(
           draw_command_buffer,
           *index_buffer.internal(),
           0,
           vk::IndexType::UINT32,
         );
+        
+        let mut push_constants: [f32; 32] = [0.0; 32];
+        push_constants[0] = 0.1;
+        push_constants[1] = 0.1;
+        push_constants[2] = 0.6;
+        push_constants[3] = 1.0;
+        
+        let u8_slice: &[u8] = unsafe {
+          from_raw_parts::<u8>(
+            push_constants.as_ptr() as *const u8,
+            size_of::<[f32; 32]>(),
+          )
+        };
+        
+        device.cmd_push_constants(
+          draw_command_buffer,
+          *graphics_pipeline.layout(),
+          vk::ShaderStageFlags::VERTEX,
+          0,
+          u8_slice,
+        );
+        
         device.cmd_draw_indexed(
           draw_command_buffer,
           index_buffer.data().len() as u32,
@@ -299,7 +388,7 @@ impl Vulkan {
   
   pub fn render_texture<T: Copy, L: Copy>(
     &mut self,
-    descriptor_sets: &DescriptorSet,//&Vec<vk::DescriptorSet>,
+    descriptor_sets: &DescriptorSet,
     shader: &Shader<T>,
     vertex_buffer: &Buffer<T>,
     index_buffer: &Buffer<L>,
@@ -430,8 +519,8 @@ impl Vulkan {
       &self.setup_commands_reuse_fence,
       self.device.present_queue(),
       &[],
-      &Semaphore::new(&self.device),//[],
-      &Semaphore::new(&self.device),//[],
+      &Semaphore::new(&self.device),
+      &Semaphore::new(&self.device),
       |device, texture_command_buffer| {
         let texture_barrier = vk::ImageMemoryBarrier {
           dst_access_mask: vk::AccessFlags::TRANSFER_WRITE,
@@ -466,8 +555,8 @@ impl Vulkan {
                 .build(),
             )
             .image_extent(vk::Extent3D {
-              width: dst_image.width(),//image_dimensions.0,
-              height: dst_image.height(),//image_dimensions.1,
+              width: dst_image.width(),
+              height: dst_image.height(),
               depth: 1,
             });
         
@@ -518,15 +607,9 @@ impl Vulkan {
       &self.setup_commands_reuse_fence,
       self.device.present_queue(),
       &[],
-      &Semaphore::new(&self.device),//[],
-      &Semaphore::new(&self.device),//[],
+      &Semaphore::new(&self.device),
+      &Semaphore::new(&self.device),
       |device, buffer_command_buffer| {
-        /*let buffer_barrier = vk::BufferMemoryBarrier {
-          dst_access_mask: vk::AccessFlags::TRANSFER_WRITE,
-          buffer: dst_buffer.internal(),
-          size: std::mem::size_of::<T>() as u64 * (src_buffer.data().len() as u64)
-          ..Default::default()
-        };*/
         let buffer_barrier = vk::BufferMemoryBarrier::builder()
                                 .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
                                 .buffer(*dst_buffer.internal())
@@ -546,19 +629,6 @@ impl Vulkan {
         
         let buffer_copy = vk::BufferCopy::builder()
                              .size(std::mem::size_of::<T>() as u64 * (src_buffer.data().len() as u64));
-        /*
-        let buffer_copy_regions = vk::BufferImageCopy::builder()
-            .image_subresource(
-              vk::ImageSubresourceLayers::builder()
-                .aspect_mask(vk::ImageAspectFlags::COLOR)
-                .layer_count(1)
-                .build(),
-            )
-            .image_extent(vk::Extent3D {
-              width: dst_image.width(),//image_dimensions.0,
-              height: dst_image.height(),//image_dimensions.1,
-              depth: 1,
-            });*/
         
         unsafe {
           device.cmd_copy_buffer(
@@ -567,13 +637,6 @@ impl Vulkan {
             *dst_buffer.internal(),
             &[buffer_copy.build()],
           );
-          /*device.cmd_copy_buffer_to_image(
-            texture_command_buffer,
-            *src_buffer.internal(),
-            dst_image.internal(),
-            vk::ImageLayout::TRANSFER_DST_OPTIMAL,
-            &[buffer_copy_regions.build()],
-          );*/
         }
         
         let buffer_barrier_end = vk::BufferMemoryBarrier::builder()
@@ -581,13 +644,6 @@ impl Vulkan {
                                     .dst_access_mask(vk::AccessFlags::SHADER_READ)
                                     .buffer(*dst_buffer.internal())
                                     .size(std::mem::size_of::<T>() as u64 * (src_buffer.data().len() as u64));
-        /*
-        let buffer_barrier_end = vk::BufferMemoryBarrier {
-          src_access_mask: vk::AccessFlags::TRANSFER_WRITE,
-          dst_access_mask: vk::AccessFlags::SHADER_READ,
-          buffer: dst_buffer.internal(),
-          ..Default::default()
-        };*/
         
         unsafe {
           device.cmd_pipeline_barrier(
@@ -604,8 +660,137 @@ impl Vulkan {
     );
   }
   
+  pub fn run_compute<T: Copy>(&mut self, 
+                              compute_shader: &ComputeShader, 
+                              descriptor_sets: &DescriptorSet, 
+                              in_buffer: &Buffer<T>,
+                              out_buffer: &Buffer<T>,
+                              x: u32, y: u32, z: u32) {
+    let dst_buffer = Buffer::<T>::builder()
+                                     .data(in_buffer.data().to_vec())
+                                     .usage_transfer_storage_src_dst()
+                                     .memory_properties_host_visible_coherent()
+                                     .build(&self.device);
+    
+    let gpu_src_buffer = Buffer::<T>::builder()
+                                     .data(out_buffer.data().to_vec())
+                                     .usage_transfer_storage_src_dst()
+                                     .memory_properties_host_visible_coherent()
+                                     .build(&self.device);
+    
+    let descriptor_set_writer = DescriptorWriter::builder()
+                                                .update_storage_buffer(&dst_buffer, 
+                                                                       &descriptor_sets)
+                                                .update_storage_buffer(&gpu_src_buffer, 
+                                                                       &descriptor_sets);;
+    descriptor_set_writer.build(&self.device);
+    
+    Vulkan::record_submit_commandbuffer(
+      &self.device,
+      self.setup_command_buffer,
+      &self.setup_commands_reuse_fence,
+      self.device.present_queue(),
+      &[],
+      &Semaphore::new(&self.device),
+      &Semaphore::new(&self.device),
+      |device, compute_command_buffer| {
+        
+        let buffer_copy = vk::BufferCopy::builder()
+                             .size(std::mem::size_of::<T>() as u64 * (in_buffer.data().len() as u64));
+        
+        unsafe {
+          device.cmd_copy_buffer(
+            compute_command_buffer,
+            *in_buffer.internal(),
+            *dst_buffer.internal(),
+            &[buffer_copy.build()],
+          );
+        }
+        
+        let buffer_barrier = vk::BufferMemoryBarrier::builder()
+                                .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                                .dst_access_mask(vk::AccessFlags::SHADER_READ | vk::AccessFlags::SHADER_WRITE)
+                                .buffer(*dst_buffer.internal())
+                                .size(std::mem::size_of::<T>() as u64 * (in_buffer.data().len() as u64));
+        
+        unsafe {
+          device.cmd_pipeline_barrier(
+            compute_command_buffer,
+            vk::PipelineStageFlags::TRANSFER,
+            vk::PipelineStageFlags::COMPUTE_SHADER,
+            vk::DependencyFlags::empty(),
+            &[],
+            &[buffer_barrier.build()],
+            &[],
+          );
+        }
+        
+        unsafe {
+          device.cmd_bind_pipeline(
+            compute_command_buffer,
+            vk::PipelineBindPoint::COMPUTE,
+            *compute_shader.pipeline().internal(),
+          );
+          
+          device.cmd_bind_descriptor_sets(
+            compute_command_buffer,
+            vk::PipelineBindPoint::COMPUTE,
+            compute_shader.pipeline_layout(),
+            0,
+            &descriptor_sets.internal()[..],
+            &[],
+          );
+        }
+        
+        unsafe {
+          device.cmd_dispatch(
+            compute_command_buffer,
+            x,
+            y,
+            z,
+          )
+        }
+        
+        let buffer_barrier_end = vk::BufferMemoryBarrier::builder()
+                                    .src_access_mask(vk::AccessFlags::SHADER_READ | vk::AccessFlags::SHADER_WRITE)
+                                    .dst_access_mask(vk::AccessFlags::TRANSFER_READ)
+                                    .buffer(*gpu_src_buffer.internal())
+                                    .size(std::mem::size_of::<T>() as u64 * (out_buffer.data().len() as u64));
+        
+        unsafe {
+          device.cmd_pipeline_barrier(
+            compute_command_buffer,
+            vk::PipelineStageFlags::COMPUTE_SHADER,
+            vk::PipelineStageFlags::TRANSFER,
+            vk::DependencyFlags::empty(),
+            &[],
+            &[buffer_barrier_end.build()],
+            &[],
+          );
+        }
+        
+        let buffer_copy = vk::BufferCopy::builder()
+                             .size(std::mem::size_of::<T>() as u64 * (out_buffer.data().len() as u64));
+        
+        unsafe {
+          device.cmd_copy_buffer(
+            compute_command_buffer,
+            *gpu_src_buffer.internal(),
+            *out_buffer.internal(),
+            &[buffer_copy.build()],
+          );
+        }
+      },
+    );
+    
+    unsafe { self.device.internal().device_wait_idle().unwrap() };
+   // *data = src_buffer.retrieve_buffer_data(&self.device);
+  }
+  
+  /*
   pub fn run_compute<T: Copy>(&mut self, compute_shader: &ComputeShader, 
-                              descriptor_sets: &DescriptorSet, data: &mut Vec<T>) {
+                              descriptor_sets: &DescriptorSet, data: &mut Vec<T>,
+                              x: u32, y: u32, z: u32) {
     let src_buffer = Buffer::<T>::builder()
                                      .data(data.to_vec())
                                      .usage_transfer_src_dst()
@@ -682,9 +867,9 @@ impl Vulkan {
         unsafe {
           device.cmd_dispatch(
             compute_command_buffer,
-            src_buffer.data().len() as u32,
-            1,
-            1,
+            x,
+            y,
+            z,
           )
         }
         
@@ -722,7 +907,7 @@ impl Vulkan {
     
     unsafe { self.device.internal().device_wait_idle().unwrap() };
     *data = src_buffer.retrieve_buffer_data(&self.device);
-  }
+  }*/
   
   pub fn device(&self) -> &VkDevice {
     &self.device

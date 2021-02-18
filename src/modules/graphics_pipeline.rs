@@ -6,17 +6,23 @@ use crate::modules::{VkDevice, Viewport, Scissors, Renderpass};
 
 pub struct GraphicsPipeline {
   pipeline: vk::Pipeline,
+  layout: vk::PipelineLayout,
 }
 
 impl GraphicsPipeline {
-  pub fn new(pipeline: vk::Pipeline) -> GraphicsPipeline {
+  pub fn new(pipeline: vk::Pipeline, layout: vk::PipelineLayout) -> GraphicsPipeline {
     GraphicsPipeline {
       pipeline,
+      layout,
     }
   }
   
   pub fn internal(&self) -> &vk::Pipeline {
     &self.pipeline
+  }
+  
+  pub fn layout(&self) -> &vk::PipelineLayout {
+    &self.layout
   }
   
   pub fn destroy(&self, device: &VkDevice) {
@@ -226,30 +232,7 @@ impl GraphicsPipelineBuilder {
         .expect("Unable to create graphics pipeline")
     };
     
-    GraphicsPipeline::new(graphics_pipelines[0])
+    GraphicsPipeline::new(graphics_pipelines[0], *pipeline_layout)
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

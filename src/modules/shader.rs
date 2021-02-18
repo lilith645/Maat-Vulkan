@@ -37,9 +37,16 @@ impl<T: Sized + Copy> Shader<T> {
       device.internal().create_shader_module(&fragment_info, None).expect("Fragment shader module error")
     };
     
+    let push_constant_ranges = vk::PushConstantRange::builder()
+                                  .stage_flags(vk::ShaderStageFlags::VERTEX)
+                                  .size(32 * mem::size_of::<f32>() as u32)
+                                  .build();
+    
     let layout_info = {
       if descriptor_set_layouts.len() == 0 {
-        vk::PipelineLayoutCreateInfo::default()
+        vk::PipelineLayoutCreateInfo::builder()
+           .push_constant_ranges(&[push_constant_ranges])
+           .build()
       } else {
         vk::PipelineLayoutCreateInfo::builder().set_layouts(descriptor_set_layouts).build()
       }
@@ -87,13 +94,10 @@ impl<T: Sized + Copy> Shader<T> {
       );
     }
     
-    let vertex_input_state = vk::PipelineVertexInputStateCreateInfo {
-      vertex_attribute_description_count: vertex_input_attributes.len() as u32,
-      p_vertex_attribute_descriptions: vertex_input_attributes.as_ptr(),
-      vertex_binding_description_count: vertex_input_binding.len() as u32,
-      p_vertex_binding_descriptions: vertex_input_binding.as_ptr(),
-      ..Default::default()
-    };
+    let vertex_input_state = vk::PipelineVertexInputStateCreateInfo::builder()
+                                .vertex_attribute_descriptions(&vertex_input_attributes)
+                                .vertex_binding_descriptions(&vertex_input_binding)
+                                .build();
     
     let graphics_pipeline = graphics_pipeline_builder.build(device, 
                                                             &pipeline_layout, 
